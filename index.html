@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>パチスロ 機械割＆プレイシミュレーター (無限RUSH増築対応版)</title>
+    
+    <!-- グラフ描画用ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #f0f2f5; color: #333; padding: 20px; padding-bottom: 150px; font-size: 14px; }
+        h1 { font-size: 20px; color: #1a252f; border-bottom: 2px solid #3498db; padding-bottom: 5px; margin-top: 0; }
+        h2 { font-size: 15px; color: #fff; background-color: #2c3e50; padding: 6px 10px; border-radius: 4px; margin-top: 25px; margin-bottom: 10px; }
+        .container { max-width: 1050px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        
+        /* 表示切替＆セーブシステム */
+        .top-controls { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 20px; }
+        .save-system, .display-toggles { background: #e8f4fd; padding: 15px; border-radius: 8px; border: 1px solid #b3d7ff; flex: 1; min-width: 300px; }
+        .display-toggles { background: #fdf2e9; border-color: #fad7a1; }
+        .save-system h3, .display-toggles h3 { margin-top: 0; font-size: 14px; color: #2c3e50; margin-bottom: 10px; border-bottom: 1px solid #ccc; padding-bottom: 5px; }
+        .slot-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+        .slot-btn { background: #fff; border: 1px solid #aeb6bf; padding: 8px; border-radius: 4px; text-align: center; }
+        .slot-name-input { width: 90%; padding: 4px; font-size: 12px; margin-bottom: 6px; border: 1px solid #ccc; border-radius: 3px; text-align: center; color: #2980b9; font-weight: bold; background: #f8f9fa; }
+        .slot-name-input:focus { background: #fff; outline: 1px solid #3498db; }
+        .btn-mini { font-size: 11px; padding: 3px 8px; cursor: pointer; border: 1px solid #ccc; background: #f8f9fa; border-radius: 3px; }
+        .btn-mini:hover { background: #e2e6ea; }
+        .toggle-labels label { display: inline-block; margin-right: 15px; margin-bottom: 8px; font-weight: bold; cursor: pointer; color: #d35400; }
+        .toggle-labels input[type="checkbox"] { transform: scale(1.2); margin-right: 5px; }
+
+        /* 設定エリア */
+        .settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 15px; }
+        .setting-box { background: #f8f9fa; border: 1px solid #dee2e6; padding: 12px; border-radius: 6px; transition: 0.3s; position: relative; }
+        .setting-box h3 { margin-top: 0; font-size: 14px; color: #2980b9; border-bottom: 1px dashed #bdc3c7; padding-bottom: 4px; display: flex; justify-content: space-between; align-items: center; }
+        .input-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+        .input-row label { font-weight: bold; font-size: 12px; color: #495057; }
+        input[type="number"] { width: 70px; padding: 4px; border: 1px solid #ced4da; border-radius: 4px; text-align: right; }
+        select { padding: 4px; border: 1px solid #ced4da; border-radius: 4px; font-size: 12px; }
+        .calc-box { margin-top: 10px; background: #fff; border: 1px solid #ffdcb5; padding: 8px; border-radius: 4px; font-size: 12px; color: #2d3436; text-align: center; }
+        .calc-box b { color: #d35400; font-size: 14px; }
+        .small-input { width: 50px !important; text-align: center; }
+        
+        .btn-add-rush { background: #8e44ad; color: white; border: none; padding: 12px 25px; font-size: 15px; font-weight: bold; border-radius: 6px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: 0.2s; width: 100%; margin-bottom: 25px; }
+        .btn-add-rush:hover { background: #9b59b6; transform: translateY(-2px); }
+        .btn-del { background: #ff7675; color: #fff; border: none; padding: 3px 8px; border-radius: 3px; font-size: 11px; cursor: pointer; font-weight: normal; }
+        .btn-del:hover { background: #d63031; }
+
+        /* テーブルエリア */
+        .table-wrapper { margin-bottom: 15px; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { border: 1px solid #dee2e6; padding: 6px; text-align: center; vertical-align: middle; }
+        th { background-color: #e9ecef; color: #495057; font-weight: bold; }
+        .table-title { font-weight: bold; margin-top: 15px; margin-bottom: 4px; font-size: 13px; }
+        
+        /* シミュレーターエリア */
+        .simulator-box { background: #1e272e; color: #d2dae2; border-radius: 8px; padding: 15px; margin-top: 10px; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
+        .sim-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #485460; padding-bottom: 10px; margin-bottom: 10px; flex-wrap: wrap; gap: 10px; }
+        .sim-state { font-size: 20px; font-weight: bold; color: #0be881; }
+        .sim-stats { font-size: 14px; display: flex; gap: 15px; flex-wrap: wrap; align-items: center; }
+        .sim-stats b { font-size: 18px; color: #ffd32a; }
+        .chain-box { border-left: 2px solid #7f8c8d; padding-left: 15px; margin-left: 5px; color: #ffcccc; font-size: 13px; }
+        .chain-box b { color: #ff4d4d; font-size: 18px; }
+        
+        /* 履歴とグラフ */
+        .sim-dashboard { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; }
+        .sim-history-box { flex: 1; min-width: 250px; background: #2f3640; padding: 12px; border-radius: 6px; border: 1px solid #353b48; }
+        .sim-history-box h4 { margin-top: 0; margin-bottom: 8px; border-bottom: 1px solid #718093; padding-bottom: 5px; color: #fbc531; font-size: 14px; }
+        #simHistoryList { list-style: none; padding: 0; margin: 0; font-size: 13px; line-height: 1.8; color: #ecf0f1; }
+        .sim-graph-box { flex: 2; min-width: 300px; background: #fff; padding: 10px; border-radius: 6px; height: 220px; position: relative; }
+
+        .sim-controls { display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap; align-items: center; }
+        .btn-spin { background: #ef5777; color: white; border: none; padding: 10px 15px; font-size: 15px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.2s; flex: 1; min-width: 120px; }
+        .btn-spin:hover { background: #f53b57; }
+        .btn-auto { background: #3c40c6; color: white; border: none; padding: 10px 15px; font-size: 13px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.2s; flex: 1; min-width: 160px; }
+        .btn-auto:hover { background: #575fcf; }
+        .btn-autoplay { background: #27ae60; color: white; border: none; padding: 10px 15px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.2s; flex: 1; min-width: 140px; }
+        .btn-autoplay:hover { filter: brightness(1.1); }
+        .btn-reset { background: #808e9b; color: white; border: none; padding: 10px 15px; font-size: 14px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: 0.2s; }
+        .btn-reset:hover { background: #d2dae2; color: #1e272e; }
+        .sim-log { background: #000; height: 200px; overflow-y: auto; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 13px; line-height: 1.6; }
+        .log-hit { color: #ffdd59; font-weight: bold; }
+        .log-fall { color: #ff5e57; }
+        .log-sys { color: #0fb9b1; }
+        .log-miss { color: #808e9b; }
+
+        /* 固定フッター */
+        .result-box {
+            position: fixed; bottom: 0; left: 0; width: 100%;
+            background: rgba(224, 247, 250, 0.95);
+            border-top: 3px solid #00bcd4;
+            padding: 15px 0; margin: 0;
+            text-align: center;
+            box-shadow: 0 -4px 10px rgba(0,0,0,0.1);
+            z-index: 1000; backdrop-filter: blur(5px);
+        }
+        .result-content { max-width: 1000px; margin: auto; display: flex; justify-content: space-around; align-items: center; }
+        .result-main { font-size: 16px; font-weight: bold; color: #37474f; }
+        .result-value { font-size: 32px; font-weight: bold; color: #c62828; margin-left: 15px; }
+        .sub-result { text-align: left; font-size: 14px; color: #455a64; font-weight: bold; display: flex; gap: 20px; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>パチスロ 機械割＆プレイシミュレーター (無限RUSH対応)</h1>
+    
+    <div class="top-controls">
+        <div class="display-toggles">
+            <h3>👁️ 表示・機能のオン/オフ切替</h3>
+            <div class="toggle-labels">
+                <label><input type="checkbox" id="use_yt" onchange="toggleSections()"> 遊タイム(天井)</label>
+                <label><input type="checkbox" id="use_jitan" checked onchange="toggleSections()"> 時短</label>
+            </div>
+            <p style="font-size:11px; margin:0; color:#7f8c8d;">※遊タイムと時短はここで表示/非表示を切り替えられます。<br>※RUSH段階は下の「追加」ボタンから無限に増やせます。</p>
+        </div>
+        <div class="save-system">
+            <h3>💾 セーブスロット (自動でブラウザ保存)</h3>
+            <div class="slot-grid" id="slotGrid"></div>
+        </div>
+    </div>
+
+    <!-- 設定エリア -->
+    <h2>各状態の設定（確率・消費・終了条件など）</h2>
+    <div class="settings-grid" id="settings-grid">
+        <!-- 通常時 -->
+        <div class="setting-box" id="box_norm" style="border-left: 4px solid #7f8c8d;">
+            <h3>通常時 (Normal)</h3>
+            <div class="input-row"><label>1回転消費 (枚):</label> <input type="number" id="cfg_norm_cost" value="3" step="0.1"></div>
+            <div class="input-row"><label>初当たり確率 (1/X):</label> <input type="number" id="cfg_norm_prob" step="0.1"></div>
+        </div>
+
+        <!-- 遊タイム -->
+        <div class="setting-box hidden" id="box_yt" style="border-left: 4px solid #e74c3c;">
+            <h3>遊タイム (You-Time)</h3>
+            <div class="input-row"><label>発動回転数 (通常G):</label> <input type="number" id="cfg_yt_trigger" value="300"></div>
+            <div class="input-row"><label>恩恵時短回数 (回):</label> <input type="number" id="cfg_yt_st" value="379"></div>
+            <div class="input-row"><label>恩恵中当たり確率 (1/X):</label> <input type="number" id="cfg_yt_prob" value="99"></div>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <div class="input-row"><label>スルー時 移行先:</label> <select id="cfg_yt_missDest" class="dest-select"></select></div>
+            <div class="input-row"><label>└ 移行先ST回数:</label> <input type="number" id="cfg_yt_missSt"></div>
+            <div class="calc-box">遊タイムでの突破期待度: <b id="stat_yt_rate">--%</b></div>
+        </div>
+
+        <!-- 時短 -->
+        <div class="setting-box" id="box_jitan" style="border-left: 4px solid #3498db;">
+            <h3>時短 (Jitan)</h3>
+            <div class="input-row"><label>1回転消費 (枚):</label> <input type="number" id="cfg_jitan_cost" step="0.1"></div>
+            <div class="input-row"><label>RUSHタイプ:</label> 
+                <select id="cfg_jitan_type" onchange="toggleType('jitan')">
+                    <option value="st" selected>ST式（規定回数）</option><option value="tenraku">転落式（フラグ抽選）</option>
+                </select>
+            </div>
+            <div class="input-row"><label>当たり確率 (1/X):</label> <input type="number" id="cfg_jitan_prob" step="0.1"></div>
+            <div class="input-row cfg_jitan_tenraku hidden"><label>転落確率 (1/X):</label> <input type="number" id="cfg_jitan_fall" step="0.1"></div>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <div class="input-row"><label id="lbl_jitan_miss">スルー時 移行先:</label> <select id="cfg_jitan_missDest" class="dest-select"></select></div>
+            <div class="input-row cfg_jitan_st"><label>└ 移行先ST回数:</label> <input type="number" id="cfg_jitan_missSt"></div>
+            <div class="calc-box cfg_jitan_st">想定ST <input type="number" id="stat_jitan_st_val" class="small-input" value="50"> 回の突破率: <b id="stat_jitan_s_rate">--%</b></div>
+            <div class="calc-box cfg_jitan_tenraku hidden">継続期待度: <b id="stat_jitan_t_rate">--%</b> (平均 <b id="stat_jitan_t_avg">--</b> 連)</div>
+        </div>
+        
+        <!-- 動的RUSH追加先 -->
+        <div id="dynamic-rushes-container" style="display: contents;"></div>
+    </div>
+
+    <!-- RUSH追加ボタン -->
+    <button type="button" class="btn-add-rush" onclick="addRush()">➕ 1段階ラッシュ追加 (新しい状態を増築する)</button>
+
+    <!-- 振り分けテーブル群 -->
+    <h2>各状態での当たり時 振り分け</h2>
+    <div id="tables-container">
+        <!-- 静的テーブル -->
+        <div id="static-tables-container"></div>
+        <!-- 動的テーブル -->
+        <div id="dynamic-tables-container" style="display: contents;"></div>
+    </div>
+
+    <!-- シミュレーター -->
+    <h2 style="background-color: #e67e22; margin-top: 30px;">🎮 仮想プレイ シミュレーター</h2>
+    <div class="simulator-box">
+        <div class="sim-header">
+            <div id="simCurrentState" class="sim-state">通常時 (0G)</div>
+            <div class="sim-stats">
+                <span>総IN: <span id="simTotalIn">0</span> 枚</span>
+                <span>総OUT: <span id="simTotalOut">0</span> 枚</span>
+                <span>差枚数: <b id="simNetOut">0</b> 枚</span>
+                <div class="chain-box">
+                    継続: <b id="simCurrentChain">0</b> 連 
+                    <span style="font-size:11px;">(平均 <span id="simAvgChain">0.0</span>連)</span> 
+                    最高: <b id="simMaxChain">0</b> 連
+                </div>
+            </div>
+        </div>
+
+        <div class="sim-dashboard">
+            <div class="sim-history-box">
+                <h4>📊 大当り履歴 (直近10回)</h4>
+                <ul id="simHistoryList"><li style="color:#7f8c8d;">履歴はありません</li></ul>
+            </div>
+            <div class="sim-graph-box">
+                <canvas id="slumpGraph"></canvas>
+            </div>
+        </div>
+        
+        <div class="sim-controls">
+            <button onclick="doSpin(false)" class="btn-spin">🎯 1回転 まわす</button>
+            <button onclick="autoSpin()" class="btn-auto">⏩ イベントまで自動</button>
+            <select id="autoPlaySpeed" style="padding: 8px; border-radius: 4px; font-weight: bold; background: #ecf0f1; border: none; outline: none;">
+                <option value="200">低速 (5連/s)</option>
+                <option value="100" selected>普通 (10連/s)</option>
+                <option value="20">高速 (50連/s)</option>
+            </select>
+            <button id="btnAutoPlay" onclick="toggleAutoPlay()" class="btn-autoplay">▶️ オートプレイ</button>
+            <button onclick="resetSim()" class="btn-reset" style="margin-left: auto;">🔄 リセット</button>
+        </div>
+        <div class="sim-log" id="simLog"></div>
+    </div>
+</div>
+
+<!-- 下部固定の計算結果表示 -->
+<div class="result-box" id="resultBox">
+    <div class="result-content">
+        <div class="result-main">
+            トータル機械割 <span class="result-value" id="resPayout">-- %</span>
+        </div>
+        <div class="sub-result">
+            <div>総期待イン: <span id="resIn" style="color:#0277bd">--</span> 枚</div>
+            <div>総期待アウト: <span id="resOut" style="color:#c62828">--</span> 枚</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // --- 状態管理配列 ---
+    let states = [
+        { id: 'norm', name: '通常時', color: '#7f8c8d' },
+        { id: 'yt', name: '遊タイム', color: '#e74c3c' },
+        { id: 'jitan', name: '時短', color: '#3498db' }
+    ];
+    let activeRushes = [];
+    let rushIdCounter = 0;
+    const rushColors = ['#2ecc71', '#f1c40f', '#9b59b6', '#e67e22', '#1abc9c', '#fd79a8', '#00b894', '#d35400', '#8e44ad', '#34495e'];
+
+    // --- テーブルの初期生成 ---
+    function createStaticTables() {
+        let stList = [ {id:'norm', name:'通常時', color:'#7f8c8d'}, {id:'jitan', name:'時短', color:'#3498db'} ];
+        let html = '';
+        stList.forEach(st => {
+            html += `<div class="table-wrapper" id="table_box_${st.id}">
+            <div class="table-title" style="color:${st.color}">${st.name} 当たり振り分け</div>
+            <table><tr><th width="8%">No.</th><th width="20%">割合 (%)</th><th width="20%">払出 (枚)</th><th width="25%">移行先</th><th width="27%">移行先ST回数 (回)</th></tr>`;
+            for(let i=1; i<=5; i++) {
+                html += `<tr><td>${i}</td><td><input type="number" id="tbl_${st.id}_prob${i}" step="0.1"></td><td><input type="number" id="tbl_${st.id}_pay${i}"></td>
+                    <td><select id="tbl_${st.id}_dest${i}" class="dest-select"></select></td>
+                    <td><input type="number" id="tbl_${st.id}_st${i}"></td></tr>`;
+            }
+            html += `</table></div>`;
+        });
+        document.getElementById('static-tables-container').innerHTML = html;
+    }
+
+    // --- 動的RUSH追加処理 ---
+    function addRush(specificId = null) {
+        let r = specificId;
+        if (!r) {
+            rushIdCounter++;
+            r = 'r' + rushIdCounter;
+        }
+        activeRushes.push(r);
+        let idx = activeRushes.length - 1;
+        let color = rushColors[idx % rushColors.length];
+        states.push({ id: r, name: `${idx + 1}段階目RUSH`, color: color });
+
+        // 設定ボックス生成
+        let box = document.createElement('div');
+        box.className = 'setting-box';
+        box.id = `box_${r}`;
+        box.style.borderLeft = `4px solid ${color}`;
+        box.innerHTML = `
+            <h3>
+                <span id="title_box_${r}" style="color:${color}"></span>
+                <button id="btn_del_${r}" onclick="removeRush('${r}')" class="btn-del">❌ 削除</button>
+            </h3>
+            <div class="input-row"><label>1回転消費 (枚):</label> <input type="number" id="cfg_${r}_cost" value="0" step="0.1"></div>
+            <div class="input-row"><label>RUSHタイプ:</label> 
+                <select id="cfg_${r}_type" onchange="toggleType('${r}')">
+                    <option value="st" selected>ST式（規定回数）</option>
+                    <option value="tenraku">転落式（フラグ抽選）</option>
+                </select>
+            </div>
+            <div class="input-row"><label>当たり確率 (1/X):</label> <input type="number" id="cfg_${r}_prob" step="0.1" value="7.7"></div>
+            <div class="input-row cfg_${r}_tenraku hidden"><label>転落確率 (1/X):</label> <input type="number" id="cfg_${r}_fall" step="0.1" value="10"></div>
+            <hr style="border:0; border-top:1px dashed #ccc;">
+            <div class="input-row"><label id="lbl_${r}_miss">スルー時 移行先:</label> <select id="cfg_${r}_missDest" class="dest-select"></select></div>
+            <div class="input-row cfg_${r}_st"><label>└ 移行先ST回数:</label> <input type="number" id="cfg_${r}_missSt" value="0"></div>
+            <div class="calc-box cfg_${r}_st">想定ST <input type="number" id="stat_${r}_st_val" class="small-input" value="15"> 回の継続率: <b id="stat_${r}_s_rate">--%</b></div>
+            <div class="calc-box cfg_${r}_tenraku hidden">継続期待度: <b id="stat_${r}_t_rate">--%</b> (平均 <b id="stat_${r}_t_avg">--</b> 連)</div>
+        `;
+        document.getElementById('dynamic-rushes-container').appendChild(box);
+
+        // 振り分けテーブル生成
+        let tbl = document.createElement('div');
+        tbl.className = 'table-wrapper';
+        tbl.id = `table_box_${r}`;
+        let thtml = `<div class="table-title" id="title_tbl_${r}" style="color:${color}"></div>
+        <table><tr><th width="8%">No.</th><th width="20%">割合 (%)</th><th width="20%">払出 (枚)</th><th width="25%">移行先</th><th width="27%">移行先ST回数 (回)</th></tr>`;
+        for(let i=1; i<=5; i++) {
+            let defProb = i===1 ? 100 : 0; let defPay = i===1 ? 50 : 0;
+            thtml += `<tr>
+                <td>${i}</td><td><input type="number" id="tbl_${r}_prob${i}" step="0.1" value="${defProb}"></td>
+                <td><input type="number" id="tbl_${r}_pay${i}" value="${defPay}"></td>
+                <td><select id="tbl_${r}_dest${i}" class="dest-select"></select></td>
+                <td><input type="number" id="tbl_${r}_st${i}" value="${i===1?15:0}"></td>
+            </tr>`;
+        }
+        thtml += `</table>`;
+        tbl.innerHTML = thtml;
+        document.getElementById('dynamic-tables-container').appendChild(tbl);
+
+        updateRushTitlesAndDropdowns();
+        
+        // 追加されたRUSHの初期値設定（自身にループ）
+        if(!specificId) {
+            document.getElementById(`cfg_${r}_missDest`).value = 'normal';
+            document.getElementById(`tbl_${r}_dest1`).value = r;
+        }
+
+        updateRates();
+        calculatePayout();
+    }
+
+    // --- RUSH削除処理 ---
+    function removeRush(rId, force=false) {
+        if(!force && !confirm('このRUSHを削除しますか？\n※関連する設定や確率は消去されます。')) return;
+        
+        activeRushes = activeRushes.filter(id => id !== rId);
+        states = states.filter(s => s.id !== rId);
+        
+        let box = document.getElementById(`box_${rId}`);
+        if(box) box.remove();
+        let tbl = document.getElementById(`table_box_${rId}`);
+        if(tbl) tbl.remove();
+        
+        updateRushTitlesAndDropdowns();
+        if(!force) { updateRates(); calculatePayout(); }
+    }
+
+    // --- プルダウンと名称の動的更新 ---
+    function updateRushTitlesAndDropdowns() {
+        // タイトルと削除ボタン制御
+        activeRushes.forEach((r, idx) => {
+            let stageNum = idx + 1;
+            let boxTitle = document.getElementById(`title_box_${r}`);
+            if(boxTitle) boxTitle.innerText = `${stageNum}段階目RUSH (${r.toUpperCase()})`;
+            let tblTitle = document.getElementById(`title_tbl_${r}`);
+            if(tblTitle) tblTitle.innerText = `${stageNum}段階目RUSH 当たり振り分け`;
+            
+            let s = states.find(x => x.id === r);
+            if(s) s.name = `${stageNum}段階目RUSH`;
+
+            let delBtn = document.getElementById(`btn_del_${r}`);
+            if(delBtn) {
+                // 1段階目は消せない仕様
+                delBtn.style.display = (idx === 0) ? 'none' : 'block';
+            }
+        });
+
+        // 全プルダウンの更新（選択状態の維持）
+        document.querySelectorAll('.dest-select').forEach(sel => {
+            let currentVal = sel.value;
+            let html = `<option value="normal">通常へ戻る</option><option value="jitan">時短へ</option>`;
+            activeRushes.forEach((r, idx) => {
+                html += `<option value="${r}">${idx+1}段階目RUSHへ</option>`;
+            });
+            sel.innerHTML = html;
+            
+            if (['normal', 'jitan', ...activeRushes].includes(currentVal)) {
+                sel.value = currentVal;
+            } else {
+                sel.value = 'normal'; // 削除された状態が選ばれていた場合は通常へ
+            }
+        });
+    }
+
+    // --- セーブUI生成 ---
+    const slotGrid = document.getElementById('slotGrid');
+    for(let i=1; i<=10; i++) {
+        const savedName = localStorage.getItem(`pachi_sim_v6_name_${i}`) || `Slot ${i}`;
+        const btn = document.createElement('div');
+        btn.className = 'slot-btn';
+        btn.innerHTML = `<input type="text" id="slot_name_${i}" class="slot-name-input" value="${savedName}" placeholder="名前を入力">
+            <div style="display:flex; justify-content:center; gap:5px;"><button class="btn-mini" onclick="loadSettings(${i})">読込</button><button class="btn-mini" onclick="saveSettings(${i})">保存</button></div>`;
+        slotGrid.appendChild(btn);
+    }
+
+    // --- 表示切替＆計算 ---
+    function toggleSections() {
+        const rules = [ { id: 'yt', use: document.getElementById('use_yt').checked }, { id: 'jitan', use: document.getElementById('use_jitan').checked } ];
+        rules.forEach(r => {
+            const box = document.getElementById(`box_${r.id}`); const tbl = document.getElementById(`table_box_${r.id}`);
+            if (box) box.classList.toggle('hidden', !r.use); if (tbl) tbl.classList.toggle('hidden', !r.use);
+        });
+        updateRates(); calculatePayout();
+    }
+    
+    function updateRates() {
+        let ytProb = Number(document.getElementById('cfg_yt_prob').value) || 0; let ytSt = Number(document.getElementById('cfg_yt_st').value) || 0;
+        let ytRate = (ytProb > 0 && ytSt > 0) ? (1 - Math.pow(1 - 1/ytProb, ytSt)) : 0;
+        if(document.getElementById('stat_yt_rate')) document.getElementById('stat_yt_rate').innerText = (ytRate * 100).toFixed(1) + "%";
+
+        ['jitan', ...activeRushes].forEach(prefix => {
+            let elType = document.getElementById(`cfg_${prefix}_type`); if(!elType) return;
+            let type = elType.value; let pStr = document.getElementById(`cfg_${prefix}_prob`).value; let p = Number(pStr) > 0 ? 1 / Number(pStr) : 0;
+            if (type === 'tenraku') {
+                let fStr = document.getElementById(`cfg_${prefix}_fall`).value; let e = Number(fStr) > 0 ? 1 / Number(fStr) : 0;
+                let rate = 0; let p_hit_spin = (1 - e) * p; let p_event = e + p_hit_spin;
+                if (p_event > 0) rate = p_hit_spin / p_event;
+                document.getElementById(`stat_${prefix}_t_rate`).innerText = p_event > 0 ? (rate * 100).toFixed(1) + "%" : "--%";
+                document.getElementById(`stat_${prefix}_t_avg`).innerText = rate > 0 && rate < 1 ? (1 / (1 - rate)).toFixed(1) : "--";
+            } else {
+                let stVal = Number(document.getElementById(`stat_${prefix}_st_val`).value) || 0;
+                let rate = (stVal > 0 && p > 0) ? (1 - Math.pow(1 - p, stVal)) : 0;
+                document.getElementById(`stat_${prefix}_s_rate`).innerText = (rate * 100).toFixed(1) + "%";
+            }
+        });
+    }
+
+    // --- セーブ・ロード ---
+    function saveSettings(slot) {
+        const nameInput = document.getElementById(`slot_name_${slot}`).value;
+        localStorage.setItem(`pachi_sim_v6_name_${slot}`, nameInput);
+
+        const data = {
+            activeRushes: activeRushes,
+            rushIdCounter: rushIdCounter
+        };
+        document.querySelectorAll('input:not(.slot-name-input), select:not(#autoPlaySpeed)').forEach(el => { 
+            if(el.id) data[el.id] = el.type === 'checkbox' ? el.checked : el.value; 
+        });
+        localStorage.setItem(`pachi_sim_v6_${slot}`, JSON.stringify(data));
+        alert(`【${nameInput || 'Slot '+slot}】に保存しました！`);
+    }
+
+    function loadSettings(slot) {
+        const raw = localStorage.getItem(`pachi_sim_v6_${slot}`);
+        if (!raw) { alert("データがありません"); return; }
+        const name = localStorage.getItem(`pachi_sim_v6_name_${slot}`) || `Slot ${slot}`;
+        const data = JSON.parse(raw);
+        
+        // 既存のRUSHを全削除
+        [...activeRushes].forEach(r => removeRush(r, true));
+        
+        // データの復元
+        if (data.activeRushes && Array.isArray(data.activeRushes)) {
+            rushIdCounter = data.rushIdCounter || 0;
+            data.activeRushes.forEach(r => { addRush(r); });
+        } else {
+            // 古いセーブデータの互換用
+            rushIdCounter = 0; addRush(); 
+        }
+
+        // 値の適用
+        for (const [id, value] of Object.entries(data)) {
+            if(id === 'activeRushes' || id === 'rushIdCounter') continue;
+            const el = document.getElementById(id);
+            if (el && !el.classList.contains('slot-name-input')) {
+                if(el.type === 'checkbox') el.checked = value; else el.value = value;
+                el.dispatchEvent(new Event('change'));
+            }
+        }
+        updateRushTitlesAndDropdowns();
+        toggleSections();
+        alert(`【${name}】を読み込みました！`);
+    }
+
+    function toggleType(prefix) {
+        const type = document.getElementById(`cfg_${prefix}_type`).value;
+        const tenrakuRows = document.querySelectorAll(`.cfg_${prefix}_tenraku`); const stRows = document.querySelectorAll(`.cfg_${prefix}_st`);
+        const lblMiss = document.getElementById(`lbl_${prefix}_miss`);
+        if (type === 'tenraku') { tenrakuRows.forEach(r => r.classList.remove('hidden')); stRows.forEach(r => r.classList.add('hidden')); if(lblMiss) lblMiss.innerText = "転落時 移行先:"; } 
+        else { tenrakuRows.forEach(r => r.classList.add('hidden')); stRows.forEach(r => r.classList.remove('hidden')); if(lblMiss) lblMiss.innerText = "スルー時 移行先:"; }
+    }
+
+    // 計算用関数
+    function getDist(prefix) {
+        let dist = [];
+        for(let i=1; i<=5; i++) {
+            let probVal = Number(document.getElementById(`tbl_${prefix}_prob${i}`).value) || 0;
+            if (probVal > 0) dist.push({ p: probVal / 100, pay: Number(document.getElementById(`tbl_${prefix}_pay${i}`).value) || 0, dest: document.getElementById(`tbl_${prefix}_dest${i}`).value, st: Number(document.getElementById(`tbl_${prefix}_st${i}`).value) || 0 });
+        }
+        return { dist };
+    }
+
+    function getConfig(prefix) {
+        if(prefix === 'normal') return { cost: Number(document.getElementById('cfg_norm_cost').value) || 0, prob: Number(document.getElementById('cfg_norm_prob').value) || 0, type: 'normal', use_yt: document.getElementById('use_yt').checked, yt_trigger: Number(document.getElementById('cfg_yt_trigger').value) || 0 };
+        else if (prefix === 'yt') return { cost: 0, type: 'st', prob: Number(document.getElementById('cfg_yt_prob').value) || 0, missDest: document.getElementById('cfg_yt_missDest').value, missSt: Number(document.getElementById('cfg_yt_missSt').value) || 0, st: Number(document.getElementById('cfg_yt_st').value) || 0 };
+        return { cost: Number(document.getElementById(`cfg_${prefix}_cost`).value) || 0, type: document.getElementById(`cfg_${prefix}_type`).value, prob: Number(document.getElementById(`cfg_${prefix}_prob`).value) || 0, fall: Number(document.getElementById(`cfg_${prefix}_fall`).value) || 0, missDest: document.getElementById(`cfg_${prefix}_missDest`).value, missSt: Number(document.getElementById(`cfg_${prefix}_missSt`).value) || 0 };
+    }
+
+    function solveLinearSystem(A, B) {
+        let n = A.length; if(n === 0) return []; let M = [];
+        for(let i=0; i<n; i++) M.push([...A[i], B[i]]);
+        for(let i=0; i<n; i++) {
+            let maxRow = i; for(let j=i+1; j<n; j++) { if(Math.abs(M[j][i]) > Math.abs(M[maxRow][i])) maxRow = j; }
+            let temp = M[i]; M[i] = M[maxRow]; M[maxRow] = temp;
+            if(Math.abs(M[i][i]) < 1e-10) return null; 
+            let pivot = M[i][i]; for(let j=i; j<=n; j++) M[i][j] /= pivot;
+            for(let j=0; j<n; j++) { if(j !== i) { let factor = M[j][i]; for(let k=i; k<=n; k++) M[j][k] -= factor * M[i][k]; } }
+        }
+        return M.map(row => row[n]);
+    }
+    function getStateId(dest, stSpins, isTenraku) { return dest === 'normal' ? 'normal' : (isTenraku ? `${dest}_tenraku` : `${dest}_${stSpins}`); }
+
+    function calculatePayout() {
+        const configs = { normal: getConfig('normal'), yt: getConfig('yt'), jitan: getConfig('jitan') };
+        const dists = { normal: getDist('norm'), yt: getDist('yt'), jitan: getDist('jitan') };
+        activeRushes.forEach(r => { configs[r] = getConfig(r); dists[r] = getDist(r); });
+
+        let queue = []; let visited = new Set(); let stateList = [];
+
+        dists.normal.dist.forEach(row => {
+            if (row.dest !== 'normal') {
+                let isTenraku = configs[row.dest].type === 'tenraku'; let id = getStateId(row.dest, row.st, isTenraku);
+                if (!visited.has(id)) { visited.add(id); queue.push({ id, base: row.dest, st: row.st, isTenraku }); }
+            }
+        });
+        if (configs.normal.use_yt && configs.normal.yt_trigger > 0) {
+            let ytId = 'yt_node'; if(!visited.has(ytId)) { visited.add(ytId); queue.push({ id: ytId, base: 'yt', st: configs.yt.st, isTenraku: false }); }
+        }
+
+        let stateData = [];
+        while (queue.length > 0) {
+            let curr = queue.shift(); stateList.push(curr.id);
+            let cfg = configs[curr.base]; let dist = dists[curr.base].dist;
+            let P_hit = 0, E_spins = 0; let p = cfg.prob > 0 ? 1 / cfg.prob : 0;
+            if (curr.isTenraku) {
+                let e = cfg.fall > 0 ? 1 / cfg.fall : 0; let p_hit_spin = (1 - e) * p; let p_event = e + p_hit_spin;
+                if (p_event > 0) { P_hit = p_hit_spin / p_event; E_spins = 1 / p_event; }
+            } else {
+                let q = 1 - p;
+                if (curr.st > 0 && p > 0) { P_hit = 1 - Math.pow(q, curr.st); E_spins = (1 - Math.pow(q, curr.st)) / p; } 
+                else { E_spins = curr.st > 0 ? curr.st : 0; }
+            }
+            
+            let e_out = 0; let nextStates = [];
+            dist.forEach(row => {
+                e_out += P_hit * row.p * row.pay;
+                if (row.dest !== 'normal') {
+                    let isT = configs[row.dest].type === 'tenraku'; let nextId = getStateId(row.dest, row.st, isT);
+                    nextStates.push({ id: nextId, prob: P_hit * row.p });
+                    if (!visited.has(nextId)) { visited.add(nextId); queue.push({ id: nextId, base: row.dest, st: row.st, isTenraku: isT }); }
+                }
+            });
+            if (cfg.missDest !== 'normal') {
+                let isT = configs[cfg.missDest].type === 'tenraku'; let nextId = getStateId(cfg.missDest, cfg.missSt, isT);
+                nextStates.push({ id: nextId, prob: (1 - P_hit) });
+                if (!visited.has(nextId)) { visited.add(nextId); queue.push({ id: nextId, base: cfg.missDest, st: cfg.missSt, isTenraku: isT }); }
+            }
+            stateData.push({ id: curr.id, e_out: e_out, e_in: E_spins * cfg.cost, transitions: nextStates });
+        }
+
+        let n = stateList.length; let A = Array(n).fill(0).map(() => Array(n).fill(0)); let B_out = Array(n).fill(0); let B_in = Array(n).fill(0);
+        for (let i = 0; i < n; i++) {
+            A[i][i] = 1; B_out[i] = stateData[i].e_out; B_in[i] = stateData[i].e_in;
+            stateData[i].transitions.forEach(t => { let j = stateList.indexOf(t.id); if (j !== -1) A[i][j] -= t.prob; });
+        }
+
+        let V_out = solveLinearSystem(A, B_out); let V_in = solveLinearSystem(A, B_in);
+        let outDisplay = '--', inDisplay = '--', payDisplay = '-- %';
+        let resBox = document.getElementById('resultBox');
+
+        if (V_out && V_in) {
+            let E_Out_Total = 0; let E_In_Hit = 0;
+            let p_norm = configs.normal.prob > 0 ? 1 / configs.normal.prob : 0; let q_norm = 1 - p_norm; let Y = configs.normal.yt_trigger;
+            let use_yt = configs.normal.use_yt && Y > 0;
+            let P_hit_norm = use_yt ? (p_norm > 0 ? 1 - Math.pow(q_norm, Y) : 0) : (p_norm > 0 ? 1 : 0);
+            let P_reach_yt = use_yt ? Math.pow(q_norm, Y) : 0;
+            let E_spins_norm = use_yt ? (p_norm > 0 ? (1 - Math.pow(q_norm, Y)) / p_norm : Y) : (p_norm > 0 ? 1 / p_norm : 0);
+
+            dists.normal.dist.forEach(row => {
+                E_Out_Total += P_hit_norm * row.p * row.pay;
+                if (row.dest !== 'normal') {
+                    let isT = configs[row.dest].type === 'tenraku'; let nextId = getStateId(row.dest, row.st, isT);
+                    let idx = stateList.indexOf(nextId);
+                    if (idx !== -1) { E_Out_Total += P_hit_norm * row.p * V_out[idx]; E_In_Hit += P_hit_norm * row.p * V_in[idx]; }
+                }
+            });
+            if (use_yt) {
+                let ytIdx = stateList.indexOf('yt_node');
+                if (ytIdx !== -1) { E_Out_Total += P_reach_yt * V_out[ytIdx]; E_In_Hit += P_reach_yt * V_in[ytIdx]; }
+            }
+            let Total_In = (E_spins_norm * configs.normal.cost) + E_In_Hit;
+            
+            if (Total_In > 0) {
+                let Payout = (E_Out_Total / Total_In) * 100;
+                inDisplay = Total_In.toFixed(2); outDisplay = E_Out_Total.toFixed(2); payDisplay = Payout.toFixed(2) + ' %';
+                if (Payout >= 100) { resBox.style.backgroundColor = '#ffebee'; resBox.style.borderTopColor = '#f44336'; } 
+                else { resBox.style.backgroundColor = 'rgba(224, 247, 250, 0.95)'; resBox.style.borderTopColor = '#00bcd4'; }
+            }
+        }
+        document.getElementById('resIn').innerText = inDisplay; document.getElementById('resOut').innerText = outDisplay; document.getElementById('resPayout').innerText = payDisplay;
+    }
+
+    document.addEventListener('input', () => { updateRates(); calculatePayout(); });
+    document.addEventListener('change', (e) => {
+        if(e.target.tagName === 'SELECT' && e.target.id !== 'autoPlaySpeed') { ['jitan', ...activeRushes].forEach(toggleType); }
+        updateRates(); calculatePayout();
+    });
+
+    // ==========================================
+    // 🎮 仮想プレイ シミュレーター ロジック
+    // ==========================================
+    let sim = { 
+        state: 'normal', remST: 0, modeG: 0, totalIn: 0, totalOut: 0, totalG: 0,
+        currentChain: 0, maxChain: 0, totalChainSum: 0, chainCount: 0,
+        spinSinceLastHit: 0, hitG: 0, sessionOut: 0, enteredRush: false,
+        history: [], graphPoints: [{x: 0, y: 0}]
+    };
+    let autoPlayTimer = null;
+    let chartInstance = null;
+
+    function initChart() {
+        const ctx = document.getElementById('slumpGraph').getContext('2d');
+        chartInstance = new Chart(ctx, {
+            type: 'line',
+            data: { datasets: [{ label: '差枚数', data: [{x: 0, y: 0}], borderColor: '#3498db', backgroundColor: 'rgba(52, 152, 219, 0.1)', borderWidth: 2, pointRadius: 0, fill: true, tension: 0.1 }] },
+            options: { responsive: true, maintainAspectRatio: false, animation: false, scales: { x: { type: 'linear', position: 'bottom', title: { display: true, text: '総ゲーム数' } }, y: { title: { display: true, text: '差枚数' } } } }
+        });
+    }
+
+    function addGraphPoint() {
+        let diff = sim.totalOut - sim.totalIn;
+        let point = {x: sim.totalG, y: diff};
+        if (sim.graphPoints.length > 0 && sim.graphPoints[sim.graphPoints.length - 1].x === point.x) { sim.graphPoints[sim.graphPoints.length - 1] = point; } 
+        else { sim.graphPoints.push(point); }
+        if (sim.graphPoints.length > 300) { sim.graphPoints = sim.graphPoints.filter((_, i) => i === 0 || i === sim.graphPoints.length - 1 || i % 2 === 0); }
+    }
+
+    function updateChart() {
+        if (!chartInstance) initChart();
+        let currentDiff = sim.totalOut - sim.totalIn;
+        chartInstance.data.datasets[0].data = [...sim.graphPoints, {x: sim.totalG, y: currentDiff}];
+        chartInstance.data.datasets[0].borderColor = currentDiff >= 0 ? '#e74c3c' : '#3498db';
+        chartInstance.data.datasets[0].backgroundColor = currentDiff >= 0 ? 'rgba(231, 76, 60, 0.1)' : 'rgba(52, 152, 219, 0.1)';
+        chartInstance.update();
+    }
+
+    function getStateName(id) {
+        const s = states.find(x => x.id === (id==='normal' ? 'norm' : id));
+        return s ? s.name : '不明';
+    }
+
+    function logMsg(msg, type='log-miss') {
+        const logBox = document.getElementById('simLog');
+        const div = document.createElement('div');
+        div.className = type; div.innerHTML = msg;
+        logBox.appendChild(div);
+        if (logBox.childElementCount > 100) logBox.removeChild(logBox.firstChild);
+        logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    function updateHistoryUI() {
+        const list = document.getElementById('simHistoryList');
+        if (sim.history.length === 0) { list.innerHTML = '<li style="color:#7f8c8d;">履歴はありません</li>'; return; }
+        let html = '';
+        sim.history.forEach((hist, i) => { html += `<li><span style="color:#bdc3c7;">${i+1}回前:</span> ${hist}</li>`; });
+        list.innerHTML = html;
+    }
+
+    function updateSimUI() {
+        const stName = getStateName(sim.state);
+        let statusTxt = ""; let color = "#fff";
+        
+        if (sim.state === 'normal') { statusTxt = `${stName} (${sim.modeG}G)`; color = "#bdc3c7"; } 
+        else {
+            let cfg = getConfig(sim.state); color = states.find(x => x.id === sim.state).color;
+            if (cfg.type === 'tenraku') { statusTxt = `${stName} (継続中: ${sim.modeG}G)`; } 
+            else { statusTxt = `${stName} (残りST: ${sim.remST}回)`; }
+        }
+        
+        const elState = document.getElementById('simCurrentState');
+        elState.innerText = statusTxt; elState.style.color = color;
+        document.getElementById('simTotalIn').innerText = sim.totalIn;
+        document.getElementById('simTotalOut').innerText = sim.totalOut;
+        document.getElementById('simNetOut').innerText = (sim.totalOut - sim.totalIn);
+        
+        document.getElementById('simCurrentChain').innerText = sim.currentChain;
+        document.getElementById('simMaxChain').innerText = sim.maxChain;
+        let avg = sim.chainCount > 0 ? (sim.totalChainSum / sim.chainCount).toFixed(1) : "0.0";
+        document.getElementById('simAvgChain').innerText = avg;
+    }
+
+    function resetSim() {
+        if (autoPlayTimer) toggleAutoPlay();
+        sim = { state: 'normal', remST: 0, modeG: 0, totalIn: 0, totalOut: 0, totalG: 0, currentChain: 0, maxChain: 0, totalChainSum: 0, chainCount: 0, spinSinceLastHit: 0, hitG: 0, sessionOut: 0, enteredRush: false, history: [], graphPoints: [{x: 0, y: 0}] };
+        document.getElementById('simLog').innerHTML = '';
+        logMsg("🔄 シミュレーターをリセットしました。", 'log-sys');
+        updateSimUI(); updateHistoryUI(); updateChart();
+    }
+
+    function toggleAutoPlay() {
+        const btn = document.getElementById('btnAutoPlay');
+        if (autoPlayTimer) {
+            clearInterval(autoPlayTimer); autoPlayTimer = null;
+            btn.innerHTML = "▶️ オートプレイ"; btn.style.background = "#27ae60";
+            updateChart();
+        } else {
+            let speed = parseInt(document.getElementById('autoPlaySpeed').value);
+            let updateCount = 0;
+            autoPlayTimer = setInterval(() => { doSpin(true); updateCount++; if (updateCount % 10 === 0) updateChart(); }, speed);
+            btn.innerHTML = "⏹️ オート停止"; btn.style.background = "#c0392b";
+        }
+    }
+
+    function doSpin(isAuto = false) {
+        sim.totalG++;
+        if (sim.currentChain === 0) { sim.spinSinceLastHit++; }
+
+        if (sim.state === 'normal') {
+            let useYt = document.getElementById('use_yt').checked;
+            let ytTrigger = Number(document.getElementById('cfg_yt_trigger').value) || 0;
+            if (useYt && ytTrigger > 0 && sim.modeG >= ytTrigger) {
+                logMsg(`[${sim.modeG}G] ⚡ 遊タイム発動！`, 'log-sys');
+                sim.state = 'yt'; sim.remST = Number(document.getElementById('cfg_yt_st').value) || 0; sim.modeG = 0;
+                addGraphPoint();
+            }
+        }
+
+        let cfg = getConfig(sim.state);
+        if (!cfg || cfg.prob <= 0) {
+            if(!isAuto && !autoPlayTimer) alert("現在の状態の当たり確率が正しく設定されていません。");
+            if(autoPlayTimer) toggleAutoPlay();
+            return false;
+        }
+
+        sim.modeG++; sim.totalIn += cfg.cost;
+        let hit = false, fell = false;
+
+        if (sim.state !== 'normal' && cfg.type === 'tenraku') {
+            let pFall = cfg.fall > 0 ? 1 / cfg.fall : 0; let pHit = 1 / cfg.prob;
+            if (Math.random() < pFall) fell = true; else if (Math.random() < pHit) hit = true;
+        } else {
+            let pHit = 1 / cfg.prob;
+            if (Math.random() < pHit) hit = true;
+            if (sim.state !== 'normal') sim.remST--;
+        }
+
+        let prefix = sim.state === 'normal' ? `[${sim.modeG}回転]` : (cfg.type === 'tenraku' ? `[RUSH ${sim.modeG}G]` : `[ST残 ${sim.remST+1}回]`);
+        let eventOccurred = false;
+
+        if (hit) {
+            eventOccurred = true;
+            if (sim.currentChain === 0) { sim.hitG = sim.spinSinceLastHit; addGraphPoint(); }
+            sim.currentChain++;
+            
+            let distState = (sim.state === 'normal' || sim.state === 'yt') ? sim.state : sim.state;
+            let dist = getDist(distState === 'normal' ? 'norm' : distState).dist;
+            let r = Math.random() * 100, acc = 0, selected = null;
+            for(let i=0; i<dist.length; i++) { acc += (dist[i].p * 100); if (r < acc) { selected = dist[i]; break; } }
+            if(!selected && dist.length>0) selected = dist[dist.length-1];
+
+            if(selected) {
+                sim.totalOut += selected.pay; sim.sessionOut += selected.pay;
+                if (activeRushes.includes(selected.dest)) sim.enteredRush = true;
+                
+                let nextName = getStateName(selected.dest);
+                logMsg(`${prefix} 🎯 当たり！ ${selected.pay}枚獲得 ⏩ 移行先: ${nextName}`, 'log-hit');
+                sim.state = selected.dest; sim.remST = selected.st; sim.modeG = 0; addGraphPoint();
+            } else {
+                logMsg(`${prefix} 🎯 当たり！ (※振り分け未設定)`, 'log-hit');
+            }
+        } else if (fell) {
+            eventOccurred = true;
+            let nextName = getStateName(cfg.missDest);
+            logMsg(`${prefix} 💣 転落... ⏩ 移行先: ${nextName}`, 'log-fall');
+            sim.state = cfg.missDest; sim.remST = cfg.missSt; sim.modeG = 0; addGraphPoint();
+        } else {
+            logMsg(`${prefix} ハズレ`, 'log-miss');
+            if (sim.state !== 'normal' && cfg.type === 'st' && sim.remST <= 0) {
+                eventOccurred = true;
+                let nextName = getStateName(cfg.missDest);
+                logMsg(`【ST終了】 ⏩ 移行先: ${nextName}`, 'log-sys');
+                sim.state = cfg.missDest; sim.remST = cfg.missSt; sim.modeG = 0; addGraphPoint();
+            }
+        }
+
+        if (sim.state === 'normal' && sim.currentChain > 0) {
+            sim.maxChain = Math.max(sim.maxChain, sim.currentChain);
+            sim.totalChainSum += sim.currentChain; sim.chainCount++;
+            
+            let typeStr = sim.enteredRush ? '<b style="color:#0be881">RUSH</b>' : '<span style="color:#7f8c8d">通常</span>';
+            let histStr = `${sim.hitG}回転 ${typeStr} <b style="color:#f1c40f">${sim.currentChain}連</b> ${sim.sessionOut}枚`;
+            sim.history.unshift(histStr);
+            if (sim.history.length > 10) sim.history.pop();
+            
+            sim.currentChain = 0; sim.sessionOut = 0; sim.spinSinceLastHit = 0; sim.enteredRush = false;
+            updateHistoryUI();
+        }
+
+        if (sim.state === 'normal' && sim.modeG % 50 === 0) addGraphPoint();
+
+        updateSimUI();
+        if(!autoPlayTimer && !isAuto) updateChart();
+        return eventOccurred;
+    }
+
+    function autoSpin() {
+        if (autoPlayTimer) toggleAutoPlay(); 
+        let maxSpins = 1000; let count = 0;
+        while(count < maxSpins) {
+            count++; let eventHappen = doSpin(true);
+            if(eventHappen) break;
+        }
+        if(count >= maxSpins) { logMsg(`※自動停止しました。`, 'log-sys'); }
+        updateChart();
+    }
+
+    // 初期化実行 (ベースとなる1段階目RUSHを自動追加)
+    window.addEventListener('DOMContentLoaded', () => {
+        createStaticTables();
+        addRush(); // 1段階目をデフォルトで追加
+        toggleSections();
+        resetSim();
+    });
+</script>
+</body>
+</html>
