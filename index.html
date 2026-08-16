@@ -272,7 +272,6 @@
         let color = rushColors[idx % rushColors.length];
         states.push({ id: r, name: `${idx + 1}段階目RUSH`, color: color });
 
-        // 設定ボックス生成
         let box = document.createElement('div');
         box.className = 'setting-box';
         box.id = `box_${r}`;
@@ -299,7 +298,6 @@
         `;
         document.getElementById('dynamic-rushes-container').appendChild(box);
 
-        // 振り分けテーブル生成
         let tbl = document.createElement('div');
         tbl.className = 'table-wrapper';
         tbl.id = `table_box_${r}`;
@@ -320,14 +318,12 @@
 
         updateRushTitlesAndDropdowns();
         
-        // 追加されたRUSHの初期値設定（自身にループ）
         if(!specificId) {
             document.getElementById(`cfg_${r}_missDest`).value = 'normal';
             document.getElementById(`tbl_${r}_dest1`).value = r;
         }
 
-        updateRates();
-        calculatePayout();
+        updateRates(); calculatePayout();
     }
 
     // --- RUSH削除処理 ---
@@ -337,10 +333,8 @@
         activeRushes = activeRushes.filter(id => id !== rId);
         states = states.filter(s => s.id !== rId);
         
-        let box = document.getElementById(`box_${rId}`);
-        if(box) box.remove();
-        let tbl = document.getElementById(`table_box_${rId}`);
-        if(tbl) tbl.remove();
+        let box = document.getElementById(`box_${rId}`); if(box) box.remove();
+        let tbl = document.getElementById(`table_box_${rId}`); if(tbl) tbl.remove();
         
         updateRushTitlesAndDropdowns();
         if(!force) { updateRates(); calculatePayout(); }
@@ -348,45 +342,29 @@
 
     // --- プルダウンと名称の動的更新 ---
     function updateRushTitlesAndDropdowns() {
-        // タイトルと削除ボタン制御
         activeRushes.forEach((r, idx) => {
             let stageNum = idx + 1;
-            let boxTitle = document.getElementById(`title_box_${r}`);
-            if(boxTitle) boxTitle.innerText = `${stageNum}段階目RUSH (${r.toUpperCase()})`;
-            let tblTitle = document.getElementById(`title_tbl_${r}`);
-            if(tblTitle) tblTitle.innerText = `${stageNum}段階目RUSH 当たり振り分け`;
-            
-            let s = states.find(x => x.id === r);
-            if(s) s.name = `${stageNum}段階目RUSH`;
+            let boxTitle = document.getElementById(`title_box_${r}`); if(boxTitle) boxTitle.innerText = `${stageNum}段階目RUSH (${r.toUpperCase()})`;
+            let tblTitle = document.getElementById(`title_tbl_${r}`); if(tblTitle) tblTitle.innerText = `${stageNum}段階目RUSH 当たり振り分け`;
+            let s = states.find(x => x.id === r); if(s) s.name = `${stageNum}段階目RUSH`;
 
             let delBtn = document.getElementById(`btn_del_${r}`);
-            if(delBtn) {
-                // 1段階目は消せない仕様
-                delBtn.style.display = (idx === 0) ? 'none' : 'block';
-            }
+            if(delBtn) delBtn.style.display = (idx === 0) ? 'none' : 'block'; // 1段階目は消せない
         });
 
-        // 全プルダウンの更新（選択状態の維持）
         document.querySelectorAll('.dest-select').forEach(sel => {
             let currentVal = sel.value;
             let html = `<option value="normal">通常へ戻る</option><option value="jitan">時短へ</option>`;
-            activeRushes.forEach((r, idx) => {
-                html += `<option value="${r}">${idx+1}段階目RUSHへ</option>`;
-            });
+            activeRushes.forEach((r, idx) => { html += `<option value="${r}">${idx+1}段階目RUSHへ</option>`; });
             sel.innerHTML = html;
-            
-            if (['normal', 'jitan', ...activeRushes].includes(currentVal)) {
-                sel.value = currentVal;
-            } else {
-                sel.value = 'normal'; // 削除された状態が選ばれていた場合は通常へ
-            }
+            sel.value = ['normal', 'jitan', ...activeRushes].includes(currentVal) ? currentVal : 'normal';
         });
     }
 
     // --- セーブUI生成 ---
     const slotGrid = document.getElementById('slotGrid');
     for(let i=1; i<=10; i++) {
-        const savedName = localStorage.getItem(`pachi_sim_v6_name_${i}`) || `Slot ${i}`;
+        const savedName = localStorage.getItem(`pachi_sim_v7_name_${i}`) || `Slot ${i}`;
         const btn = document.createElement('div');
         btn.className = 'slot-btn';
         btn.innerHTML = `<input type="text" id="slot_name_${i}" class="slot-name-input" value="${savedName}" placeholder="名前を入力">
@@ -429,38 +407,30 @@
     // --- セーブ・ロード ---
     function saveSettings(slot) {
         const nameInput = document.getElementById(`slot_name_${slot}`).value;
-        localStorage.setItem(`pachi_sim_v6_name_${slot}`, nameInput);
-
-        const data = {
-            activeRushes: activeRushes,
-            rushIdCounter: rushIdCounter
-        };
+        localStorage.setItem(`pachi_sim_v7_name_${slot}`, nameInput);
+        const data = { activeRushes: activeRushes, rushIdCounter: rushIdCounter };
         document.querySelectorAll('input:not(.slot-name-input), select:not(#autoPlaySpeed)').forEach(el => { 
             if(el.id) data[el.id] = el.type === 'checkbox' ? el.checked : el.value; 
         });
-        localStorage.setItem(`pachi_sim_v6_${slot}`, JSON.stringify(data));
+        localStorage.setItem(`pachi_sim_v7_${slot}`, JSON.stringify(data));
         alert(`【${nameInput || 'Slot '+slot}】に保存しました！`);
     }
 
     function loadSettings(slot) {
-        const raw = localStorage.getItem(`pachi_sim_v6_${slot}`);
+        const raw = localStorage.getItem(`pachi_sim_v7_${slot}`);
         if (!raw) { alert("データがありません"); return; }
-        const name = localStorage.getItem(`pachi_sim_v6_name_${slot}`) || `Slot ${slot}`;
+        const name = localStorage.getItem(`pachi_sim_v7_name_${slot}`) || `Slot ${slot}`;
         const data = JSON.parse(raw);
         
-        // 既存のRUSHを全削除
         [...activeRushes].forEach(r => removeRush(r, true));
         
-        // データの復元
         if (data.activeRushes && Array.isArray(data.activeRushes)) {
             rushIdCounter = data.rushIdCounter || 0;
             data.activeRushes.forEach(r => { addRush(r); });
         } else {
-            // 古いセーブデータの互換用
             rushIdCounter = 0; addRush(); 
         }
 
-        // 値の適用
         for (const [id, value] of Object.entries(data)) {
             if(id === 'activeRushes' || id === 'rushIdCounter') continue;
             const el = document.getElementById(id);
@@ -469,8 +439,7 @@
                 el.dispatchEvent(new Event('change'));
             }
         }
-        updateRushTitlesAndDropdowns();
-        toggleSections();
+        updateRushTitlesAndDropdowns(); toggleSections();
         alert(`【${name}】を読み込みました！`);
     }
 
@@ -486,7 +455,9 @@
     function getDist(prefix) {
         let dist = [];
         for(let i=1; i<=5; i++) {
-            let probVal = Number(document.getElementById(`tbl_${prefix}_prob${i}`).value) || 0;
+            let probElement = document.getElementById(`tbl_${prefix}_prob${i}`);
+            if(!probElement) continue; // 遊タイムなどテーブルが無い場合はスキップ
+            let probVal = Number(probElement.value) || 0;
             if (probVal > 0) dist.push({ p: probVal / 100, pay: Number(document.getElementById(`tbl_${prefix}_pay${i}`).value) || 0, dest: document.getElementById(`tbl_${prefix}_dest${i}`).value, st: Number(document.getElementById(`tbl_${prefix}_st${i}`).value) || 0 });
         }
         return { dist };
@@ -514,7 +485,7 @@
 
     function calculatePayout() {
         const configs = { normal: getConfig('normal'), yt: getConfig('yt'), jitan: getConfig('jitan') };
-        const dists = { normal: getDist('norm'), yt: getDist('yt'), jitan: getDist('jitan') };
+        const dists = { normal: getDist('norm'), yt: { dist: [] }, jitan: getDist('jitan') };
         activeRushes.forEach(r => { configs[r] = getConfig(r); dists[r] = getDist(r); });
 
         let queue = []; let visited = new Set(); let stateList = [];
